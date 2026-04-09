@@ -1,0 +1,37 @@
+@import "tailwindcss";
+@source "./app/**/*.{html,ts}";
+
+@theme {
+  --color-primary: #2a0002;
+  --color-secondary: #af2b3e;
+  --color-tertiary: #735c00;
+  --color-background: #fbfbe2;
+  --color-surface: #fbfbe2;
+  --color-outline: #877270;
+  --color-on-surface-variant: #544341;
+  --color-on-primary: #ffffff;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-outline-variant: #dac1bf;
+  
+  --font-serif: "Noto Serif", serif;
+  --font-sans: "Work Sans", sans-serif;
+  
+  --radius-default: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-[#1b1d0e] font-sans;
+  }
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+}
+
+.bg-wine-gradient {
+  background: linear-gradient(to bottom, #4A0E0E 0%, #2A0002 100%);
+}

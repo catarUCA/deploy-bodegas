@@ -1,0 +1,16 @@
+node_modules
+dist
+.angular
+npm-debug.log
+.git
+.gitignore
+Dockerfile
+.dockerignore
+.vscode
+# Core configuration files MUST be included, do NOT exclude them here
+# angular.json
+# tsconfig.json
+# tsconfig.app.json
+# tsconfig.spec.json
+# postcss.config.js
+# tailwind.config.js

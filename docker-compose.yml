@@ -1,0 +1,91 @@
+services:
+  # ─── DATABASE (MySQL) ───────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: bodegas-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mysqlpass}
+      MYSQL_DATABASE: ${DB_NAME:-Bodegas}
+      MYSQL_USER: ${DB_USER:-mysqluser}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-mysqlpass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - bodegas-network
+
+  # ─── BACKEND (Node.js) ──────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: cataruca/bodegas-backend:latest
+    container_name: bodegas-backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mysqlpass}
+      DB_NAME: ${DB_NAME:-Bodegas}
+      JWT_SECRET: ${JWT_SECRET:-secret_default}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+    depends_on:
+      - mysql
+    volumes:
+      - ./backend/uploads:/usr/src/app/uploads
+    networks:
+      - bodegas-network
+
+  # ─── FRONTEND (Angular + Nginx) ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: cataruca/bodegas-frontend:latest
+    container_name: bodegas-frontend
+    restart: always
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
+    networks:
+      - bodegas-network
+
+  # ─── PHPMYADMIN (Database UI) ───────────────────────────────────────────────
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: bodegas-phpmyadmin
+    restart: always
+    depends_on:
+      - mysql
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: root
+      PMA_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mysqlpass}
+    ports:
+      - "8080:80"
+    networks:
+      - bodegas-network
+
+  # ─── WATCHTOWER (Automatic Updates) ─────────────────────────────────────────
+  watchtower:
+    image: containrrr/watchtower
+    container_name: bodegas-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Revisa cada 5 minutos si hay nuevas imágenes en Docker Hub
+    command: --interval 300 --cleanup
+    restart: always
+
+networks:
+  bodegas-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
