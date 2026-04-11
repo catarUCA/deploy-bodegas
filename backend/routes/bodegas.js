@@ -35,6 +35,6 @@ const upload = multer({
 });
 
 router.get('/', authMiddleware, bodegaController.getBodega);
-router.post('/', authMiddleware, upload.array('history_pdf', 10), bodegaController.saveBodega);
+router.post('/', authMiddleware, upload.single('history_pdf'), bodegaController.saveBodega);
 
 module.exports = router;

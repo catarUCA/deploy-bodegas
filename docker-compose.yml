@@ -10,7 +10,7 @@ services:
       MYSQL_USER: ${DB_USER:-mysqluser}
       MYSQL_PASSWORD: ${DB_PASSWORD:-mysqlpass}
     ports:
-      - "3306:3306"
+      - "9000:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -41,6 +41,8 @@ services:
       - ./backend/uploads:/usr/src/app/uploads
     networks:
       - bodegas-network
+    extra_hosts:
+      - "a22.uca.es:host-gateway"
 
   # ─── FRONTEND (Angular + Nginx) ─────────────────────────────────────────────
   frontend:

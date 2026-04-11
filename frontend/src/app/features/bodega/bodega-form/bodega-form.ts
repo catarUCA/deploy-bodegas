@@ -117,10 +117,10 @@ import { AuthService } from '../../../core/services/auth.service';
                 </h3>
                 
                 <div class="relative group border-2 border-dashed border-outline/20 p-12 text-center hover:border-secondary/50 transition-colors">
-                  <input (change)="onFileSelected($event)" accept=".pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" id="history_pdf" type="file" multiple />
+                  <input (change)="onFileSelected($event)" accept=".pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" id="history_pdf" type="file" />
                   <span class="material-symbols-outlined text-3xl text-outline-variant mb-4 block">picture_as_pdf</span>
                   <p class="font-sans text-sm text-primary font-medium">Sube aquí el documento sobre el origen o crónicas de la bodega</p>
-                  <p class="font-sans text-[9px] uppercase tracking-widest text-outline-variant mt-2">Formatos permitidos: PDF (Máx. 100MB por archivo)</p>
+                  <p class="font-sans text-[9px] uppercase tracking-widest text-outline-variant mt-2">Formatos permitidos: PDF (Máx. 100MB)</p>
                 </div>
 
                 <!-- Lista de archivos -->
@@ -235,8 +235,8 @@ export class BodegaFormComponent implements OnInit {
 
   onFileSelected(event: any) {
     const files = event.target.files;
-    for (let i = 0; i < files.length; i++) {
-      this.selectedFiles.push(files[i]);
+    if (files.length > 0) {
+      this.selectedFiles = [files[0]];
     }
   }
 

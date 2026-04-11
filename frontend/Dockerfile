@@ -17,25 +17,8 @@ RUN npm run build
 # ─── RUNTIME STAGE ────────────────────────────────────────────────────────────
 FROM nginx:alpine
 
-# Configuramos Nginx para Angular (Single Page Application)
-COPY <<EOF /etc/nginx/conf.d/default.conf
-server {
-    listen 80;
-    server_name localhost;
-    root /usr/share/nginx/html;
-    index index.html;
-
-    location / {
-        try_files \$uri \$uri/ /index.html;
-    }
-
-    # Cache de assets estáticos
-    location ~* \.(?:ico|css|js|gif|jpe?g|png)$ {
-        expires 30d;
-        add_header Cache-Control "public";
-    }
-}
-EOF
+# Configuramos Nginx
+COPY default.conf /etc/nginx/conf.d/default.conf
 
 # Copiamos los archivos compilados desde la etapa de build
 # Basado en la estructura dist/frontend/browser detectada previamente

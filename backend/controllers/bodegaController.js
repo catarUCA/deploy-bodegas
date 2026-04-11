@@ -13,10 +13,10 @@ const bodegaController = {
 
   saveBodega: async (req, res) => {
     try {
-      // Multer handled files, they are in req.files
+      // Multer handled file, it is in req.file
       let pdf_path = null;
-      if (req.files && req.files.length > 0) {
-        pdf_path = JSON.stringify(req.files.map(f => `/uploads/${f.filename}`));
+      if (req.file) {
+        pdf_path = JSON.stringify([`/uploads/${req.file.filename}`]);
       } else if (req.body.existing_pdf_path) {
         pdf_path = req.body.existing_pdf_path;
       }
