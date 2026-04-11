@@ -52,3 +52,4 @@ Si necesitas ver los logs para depurar:
 docker compose logs -f backend
 docker compose logs -f watchtower
 ```
+
