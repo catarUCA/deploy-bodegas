@@ -98,9 +98,20 @@ import { AuthService } from '../../../core/services/auth.service';
                   </div>
                 </div>
                 <div class="grid grid-cols-1 gap-8">
-                  <div class="flex flex-col gap-2">
-                    <label class="font-sans text-[10px] uppercase font-bold text-on-surface-variant tracking-wider" for="winery_schedule">Horario de Apertura</label>
-                    <textarea formControlName="winery_schedule" class="border-0 border-b border-outline/20 bg-transparent py-3 focus:ring-0 focus:border-secondary transition-colors text-primary font-medium resize-none" id="winery_schedule" placeholder="Ej: Lunes a Viernes: 09:00 - 14:00..." rows="2"></textarea>
+                  <div class="space-y-6">
+                    <div *ngFor="let day of days" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 pb-4 border-b border-outline/5 last:border-0 last:pb-0">
+                      <div class="col-span-1 md:col-span-2">
+                        <span class="font-sans text-[10px] uppercase font-bold text-secondary tracking-[0.2em]">{{ day.label }}</span>
+                      </div>
+                      <div class="flex flex-col gap-2">
+                        <label class="font-sans text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider" [for]="day.key + '_manana'">Mañana</label>
+                        <input [formControlName]="day.key + '_manana'" class="border-0 border-b border-outline/20 bg-transparent py-2 focus:ring-0 focus:border-secondary transition-colors text-primary font-medium placeholder:text-outline/30 text-sm" [id]="day.key + '_manana'" placeholder="10:00-14:00" type="text" />
+                      </div>
+                      <div class="flex flex-col gap-2">
+                        <label class="font-sans text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider" [for]="day.key + '_tarde'">Tarde</label>
+                        <input [formControlName]="day.key + '_tarde'" class="border-0 border-b border-outline/20 bg-transparent py-2 focus:ring-0 focus:border-secondary transition-colors text-primary font-medium placeholder:text-outline/30 text-sm" [id]="day.key + '_tarde'" placeholder="17:00-20:00" type="text" />
+                      </div>
+                    </div>
                   </div>
                   <div class="flex flex-col gap-2">
                     <label class="font-sans text-[10px] uppercase font-bold text-on-surface-variant tracking-wider" for="winery_description">Breve Descripción / Filosofía</label>
@@ -183,6 +194,15 @@ export class BodegaFormComponent implements OnInit {
   existingFiles: string[] = [];
   submitting = false;
   existingPdfPath: string | null = null;
+  days = [
+    { key: 'lunes', label: 'Lunes' },
+    { key: 'martes', label: 'Martes' },
+    { key: 'miercoles', label: 'Miércoles' },
+    { key: 'jueves', label: 'Jueves' },
+    { key: 'viernes', label: 'Viernes' },
+    { key: 'sabado', label: 'Sábado' },
+    { key: 'domingo', label: 'Domingo' }
+  ];
 
   constructor() {
     this.bodegaForm = this.fb.group({
@@ -194,9 +214,23 @@ export class BodegaFormComponent implements OnInit {
       winery_email: ['', Validators.email],
       winery_web: [''],
       winery_maps: [''],
-      winery_schedule: [''],
       winery_description: [''],
-      permite_visitas: [false]
+      permite_visitas: [false],
+      // Schedule fields
+      lunes_manana: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      lunes_tarde: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      martes_manana: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      martes_tarde: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      miercoles_manana: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      miercoles_tarde: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      jueves_manana: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      jueves_tarde: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      viernes_manana: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      viernes_tarde: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      sabado_manana: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      sabado_tarde: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      domingo_manana: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]],
+      domingo_tarde: ['', [Validators.pattern(/^\d{2}:\d{2}-\d{2}:\d{2}$/)]]
     });
   }
 
@@ -222,6 +256,20 @@ export class BodegaFormComponent implements OnInit {
             winery_description: d.descripcion,
             permite_visitas: !!d.visitas
           });
+
+          if (d.horario) {
+            try {
+              const schedule = JSON.parse(d.horario);
+              Object.keys(schedule).forEach(day => {
+                const lines = schedule[day];
+                if (lines[0]) this.bodegaForm.patchValue({ [`${day}_manana`]: lines[0] });
+                if (lines[1]) this.bodegaForm.patchValue({ [`${day}_tarde`]: lines[1] });
+              });
+            } catch (e) {
+              console.warn('Could not parse schedule JSON', e);
+            }
+          }
+
 
           if (d.pdf_path) {
             this.existingPdfPath = d.pdf_path;
@@ -257,10 +305,26 @@ export class BodegaFormComponent implements OnInit {
 
     // Append form fields
     Object.keys(this.bodegaForm.value).forEach(key => {
+      // Skip structured schedule fields as they will be bundled into winery_schedule
+      if (this.days.some(d => key.startsWith(d.key))) return;
+
       let val = this.bodegaForm.value[key];
       if (key === 'permite_visitas') val = val ? 'on' : 'off';
       formData.append(key, val || '');
     });
+
+    // Bundle schedule into JSON
+    const schedule: any = {};
+    this.days.forEach(day => {
+      const manana = this.bodegaForm.get(`${day.key}_manana`)?.value;
+      const tarde = this.bodegaForm.get(`${day.key}_tarde`)?.value;
+      const daySchedule = [];
+      if (manana) daySchedule.push(manana);
+      if (tarde) daySchedule.push(tarde);
+      if (daySchedule.length > 0) schedule[day.key] = daySchedule;
+    });
+    formData.append('winery_schedule', JSON.stringify(schedule));
+
 
     // Append files
     this.selectedFiles.forEach(file => {
