@@ -83,7 +83,7 @@ CREATE TABLE `users` (
 --
 ALTER TABLE `bodegas`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD UNIQUE KEY `user_id` (`user_id`);
 
 --
 -- Indexes for table `login_codes`
