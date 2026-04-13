@@ -274,7 +274,15 @@ export class BodegaFormComponent implements OnInit {
 
           if (d.pdf_path) {
             this.existingPdfPath = d.pdf_path;
-            this.existingFiles = JSON.parse(d.pdf_path);
+            try {
+              // Handle transition from JSON array to simple string
+              const parsed = JSON.parse(d.pdf_path);
+              this.existingFiles = Array.isArray(parsed) ? parsed : [parsed];
+              // Ensure existingPdfPath is a plain string if it was JSON
+              if (Array.isArray(parsed)) this.existingPdfPath = parsed[0];
+            } catch (e) {
+              this.existingFiles = [d.pdf_path];
+            }
           }
         }
       },
