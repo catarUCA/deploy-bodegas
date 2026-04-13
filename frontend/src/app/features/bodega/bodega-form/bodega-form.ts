@@ -12,16 +12,17 @@ import { AuthService } from '../../../core/services/auth.service';
   imports: [CommonModule, ReactiveFormsModule],
   template: `
     <div class="min-h-screen bg-background">
+      <button (click)="onLogout()" class="fixed top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-outline/10 text-secondary font-sans text-[10px] uppercase font-bold tracking-widest hover:bg-secondary hover:text-white transition-all shadow-sm">
+        <span class="material-symbols-outlined text-sm">logout</span>
+        Cerrar Sesión
+      </button>
+
       <!-- Registration Form Section -->
       <section class="py-24 px-6 lg:px-24">
         <div class="max-w-3xl mx-auto">
           <div class="mb-16 text-center">
             <span class="font-sans text-[10px] uppercase tracking-[0.2em] text-secondary font-bold">Formulario de Inscripción</span>
             <h2 class="font-serif text-4xl text-primary mt-4 font-bold">Censo de Bodegas</h2>
-            
-            <button (click)="onLogout()" class="mt-4 text-[10px] uppercase tracking-widest font-bold text-secondary hover:underline">
-              Cerrar Sesión
-            </button>
           </div>
           
           <div class="bg-white p-8 md:p-12 shadow-sm border border-outline/5">
@@ -92,7 +93,7 @@ import { AuthService } from '../../../core/services/auth.service';
                     <span class="font-sans text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">¿Permite Visitas?</span>
                     <label class="relative inline-flex items-center cursor-pointer">
                       <input formControlName="permite_visitas" class="sr-only peer" type="checkbox" />
-                      <div class="w-10 h-5 bg-outline/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:inset-s-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-secondary">
+                      <div class="w-10 h-5 bg-outline/20 rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-secondary">
                       </div>
                     </label>
                   </div>

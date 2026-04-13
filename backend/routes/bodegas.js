@@ -14,11 +14,11 @@ const storage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    req._fileCounter = (req._fileCounter || 0) + 1;
     const wineryName = req.body.winery_name || 'bodega';
-    const cleanName = wineryName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const ext = path.extname(file.originalname);
-    cb(null, `${cleanName}_${req._fileCounter}${ext}`);
+    // Clean name: replace spaces and special chars with underscores
+    const cleanName = wineryName.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${cleanName}${ext}`);
   },
 });
 
