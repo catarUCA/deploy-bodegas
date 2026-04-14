@@ -4,6 +4,21 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
+// Helpers suggested by audit
+const extractFilename = (filePath) => {
+  if (!filePath) return null;
+  return filePath.split('/').pop();
+};
+
+const normalizeName = (name) => {
+  return (name || '')
+    .toLowerCase()
+    .replace(/\.pdf$/, '')
+    .replace(/[^a-z0-9]/gi, '_')
+    .replace(/_+/g, '_')
+    .trim();
+};
+
 const bodegaController = {
   getBodega: async (req, res) => {
     try {
@@ -32,8 +47,7 @@ const bodegaController = {
       // 2. Determine new path and handle renames if necessary
       let pdf_path = null;
       let physicalRenamed = false;
-      const newWineryName = req.body.winery_name || 'bodega';
-      const cleanNewName = newWineryName.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const cleanNewName = normalizeName(req.body.winery_name || 'bodega');
 
       if (req.file) {
         // New upload handles itself via Multer
@@ -41,7 +55,7 @@ const bodegaController = {
       } else if (req.body.existing_pdf_path) {
         // Keeping existing file - check if winery name change requires a rename on disk
         pdf_path = req.body.existing_pdf_path;
-        const currentFilename = pdf_path.split('/').pop();
+        const currentFilename = extractFilename(pdf_path);
         const ext = path.extname(currentFilename).toLowerCase();
         const expectedFilename = `${cleanNewName}${ext}`;
 
@@ -69,18 +83,18 @@ const bodegaController = {
         const ingestaUrl = process.env.INGESTA_WEBHOOK_URL;
         if (ingestaUrl) {
           axios.post(ingestaUrl, {
-            old_file: oldPdfPath,
-            new_file: pdf_path
+            old_file: extractFilename(oldPdfPath),
+            new_file: extractFilename(pdf_path),
+            user_id: req.userId,
+            bodega_name: normalizeName(req.body.winery_name)
           }).catch(err => console.error('Webhook error:', err.message));
         }
 
         // Cleanup old file IF it changed AND wasn't already handled by rename/overwrite
-        // We only delete if pathChanged is true, we had an old path, and it wasn't just renamed on disk
         if (pathChanged && oldPdfPath && !physicalRenamed) {
-          const oldFilename = oldPdfPath.split('/').pop();
-          const newFilename = pdf_path ? pdf_path.split('/').pop() : null;
+          const oldFilename = extractFilename(oldPdfPath);
+          const newFilename = extractFilename(pdf_path);
           
-          // Only delete if the filename is actually different (Multer might have overwriten the same name)
           if (oldFilename !== newFilename) {
             const deleteLocal = path.join(__dirname, '..', 'uploads', oldFilename);
             if (fs.existsSync(deleteLocal)) {
