@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 
 const authRoutes = require('./routes/auth');
 const bodegaRoutes = require('./routes/bodegas');
+const chatRoutes = require('./routes/chat');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +28,7 @@ const loginLimiter = rateLimit({
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use('/auth', loginLimiter, authRoutes);
 app.use('/api/bodegas', bodegaRoutes);
+app.use('/api/chat', chatRoutes);
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {

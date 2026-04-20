@@ -12,5 +12,9 @@ export const routes: Routes = [
     loadComponent: () => import('./features/bodega/bodega-form/bodega-form').then(m => m.BodegaFormComponent),
     canActivate: [authGuard]
   },
+  { 
+    path: 'consultas', 
+    loadComponent: () => import('./features/chat/consultas').then(m => m.ConsultasComponent)
+  },
   { path: '**', redirectTo: 'form' }
 ];
