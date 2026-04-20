@@ -9,11 +9,14 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-Bodegas}
       MYSQL_USER: ${DB_USER:-mysqluser}
       MYSQL_PASSWORD: ${DB_PASSWORD:-mysqlpass}
+      DB_READ_USER: ${DB_READ_USER:-reader}
+      DB_READ_PASSWORD: ${DB_READ_PASSWORD:-readerpass}
     ports:
-      - "9000:3306"
+      - "9001:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./db/setup-read-user.sh:/docker-entrypoint-initdb.d/setup-read-user.sh
     networks:
       - bodegas-network
 

@@ -1,0 +1,783 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "chat-bodegas",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                832,
+                1360
+            ],
+            "id": "5562f6bf-084e-4418-af11-b30cdf057698",
+            "name": "WEBHOOK CHAT Bodegas",
+            "webhookId": "chat-jerez"
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 1
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.accion }}",
+                                        "rightValue": "init",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "619e58db-a336-46d0-965a-f0867d55876b"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "inicializar"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 1
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.accion }}",
+                                        "rightValue": "chat",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "410e97d9-65c6-45e3-889a-b68f80b88655"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "chatear"
+                        }
+                    ]
+                },
+                "options": {
+                    "fallbackOutput": "none"
+                }
+            },
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3,
+            "position": [
+                1056,
+                1360
+            ],
+            "id": "0f577bf8-08df-4bcd-823d-c7ba758e722f",
+            "name": "1. Router Acción Bodegas"
+        },
+        {
+            "parameters": {
+                "operation": "set",
+                "key": "=contexto_bodegas:{{ $json.body.id_sesion }}",
+                "value": "={{ $json.body.jerez_context || 'Consulta sobre vinos DO Jerez' }}"
+            },
+            "type": "n8n-nodes-base.redis",
+            "typeVersion": 1,
+            "position": [
+                1280,
+                1200
+            ],
+            "id": "6c500c8b-d07f-4ee3-af1d-6d3c3aea4d7e",
+            "name": "2. Redis Guardar Contexto",
+            "credentials": {
+                "redis": {
+                    "id": "sT6bV3qqYaCn2Ozl",
+                    "name": "Redis account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ { ok: true, id_sesion: $json.body.id_sesion } }}",
+                "options": {
+                    "responseCode": 200
+                }
+            },
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.5,
+            "position": [
+                1568,
+                1200
+            ],
+            "id": "09b0d342-f81a-4238-8f3c-ff2b1f3dac5f",
+            "name": "3. Respuesta Init Bodegas"
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT nombre FROM bodegas ORDER BY nombre",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.mySql",
+            "typeVersion": 2.4,
+            "position": [
+                1280,
+                1504
+            ],
+            "id": "e6789e77-cc3b-4c92-8e7d-6050b380a06b",
+            "name": "0. Lista Bodegas MySQL",
+            "credentials": {
+                "mySql": {
+                    "id": "YEBbJpMV3lQGWKEn",
+                    "name": "bodegas db test"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "={{ $('1. Router Acción Bodegas').item.json.body.input }}",
+                "options": {
+                    "systemMessage": "=You are a JSON classifier. Respond ONLY with valid JSON — no markdown, no explanation.\n\nYour task: classify a winery query for the DO Jerez (Sherry) wine region and extract a normalized winery name.\n\n━━━ BODEGAS REGISTERED IN THE DATABASE ━━━\n{{ $('0. Lista Bodegas MySQL').all().map(i => i.json.nombre).join(', ') }}\n\n━━━ OUTPUT SCHEMA ━━━\n{\n  \"type\": \"VECTORIAL | RELACIONAL | BOTH\",\n  \"winery_mentioned\": \"string | null\",\n  \"filters\": {\n    \"visitas\": true,\n    \"hora\": \"HH:mm\",\n    \"ciudad\": \"string\",\n    \"provincia\": \"string\"\n  }\n}\n\n━━━ CLASSIFICATION ━━━\n- VECTORIAL → history, founding year/date, soleras, criaderas, vineyards (albariza), wine brands, winemaking process, any biographical or historical info\n- RELACIONAL → address, phone, email, website, schedule/hours, visits (yes/no), location searches, operational data\n- BOTH → query requires BOTH historical AND operational/contact data simultaneously\n\n━━━ NAME NORMALIZATION (CRITICAL) ━━━\n- If the user mentions a winery name (even with typos, abbreviations or partial name), find the BEST MATCH from the database list above\n- Examples: \"Bias\" → \"González Byass\" | \"byass\" → \"González Byass\" | \"Barbadil\" → \"Barbadillo\" | \"visdom\" → \"Wisdom & Warter\"\n- Always return the EXACT name from the database list (case-sensitive)\n- If no bodega is mentioned → null\n- If genuinely ambiguous and not in the list → null\n- IMPORTANT: General historical questions like \"qué bodega se fundó en 1950\" do NOT mention a specific bodega → winery_mentioned: null, type: VECTORIAL\n\n━━━ FILTERS ━━━\n- visitas: true only if user explicitly asks about tours/visit availability\n- hora: HH:mm format if a specific time is mentioned\n- ciudad: city name if mentioned\n- provincia: province name if mentioned\n- Omit any filter not present in the query\n\n━━━ QUERY ━━━\n{{ $('1. Router Acción Bodegas').item.json.body.input }}\n\nRESPOND WITH ONLY JSON:\n{\n  \"type\": \"RELACIONAL\",\n  \"winery_mentioned\": null,\n  \"filters\": {}\n}"
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 3.1,
+            "position": [
+                1504,
+                1504
+            ],
+            "id": "dc5ac4a8-dbb9-4a44-93e3-a2e5763e9d11",
+            "name": "2. Clasificar Tipo Respuesta"
+        },
+        {
+            "parameters": {
+                "jsCode": "const rawText = $input.first().json.output;\n\nif (!rawText || !rawText.trim()) {\n  return { json: { type: 'BOTH', winery_mentioned: null, filters: {}, error: 'No response text' } };\n}\n\ntry {\n  let cleaned = rawText.trim()\n    .replace(/```json|```/gi, '')\n    .replace(/^[\\s\\S]*?({)/m, '$1')\n    .trim();\n\n  const parsed = JSON.parse(cleaned);\n\n  if (!parsed.type || !['VECTORIAL', 'RELACIONAL', 'BOTH'].includes(parsed.type)) {\n    throw new Error('Invalid type: ' + parsed.type);\n  }\n\n  const winery = (typeof parsed.winery_mentioned === 'string' && parsed.winery_mentioned.trim())\n    ? parsed.winery_mentioned.trim()\n    : null;\n\n  let filters = {};\n  if (parsed.filters && typeof parsed.filters === 'object') {\n    if (typeof parsed.filters.visitas === 'boolean') filters.visitas = parsed.filters.visitas;\n    if (typeof parsed.filters.hora === 'string' && /^\\d{2}:\\d{2}$/.test(parsed.filters.hora)) filters.hora = parsed.filters.hora;\n    if (typeof parsed.filters.ciudad === 'string' && parsed.filters.ciudad) filters.ciudad = parsed.filters.ciudad;\n    if (typeof parsed.filters.provincia === 'string' && parsed.filters.provincia) filters.provincia = parsed.filters.provincia;\n  }\n\n  return { json: { type: parsed.type, winery_mentioned: winery, filters } };\n\n} catch (error) {\n  const typeMatch = rawText.match(/\"type\"\\s*:\\s*\"(VECTORIAL|RELACIONAL|BOTH)\"/i);\n  const wineryMatch = rawText.match(/\"winery_mentioned\"\\s*:\\s*\"([^\"]+)\"/);\n  const horaMatch = rawText.match(/(\\d{2}:\\d{2})/);\n  const visitasMatch = /visitas.*true|true.*visitas/i.test(rawText);\n\n  return {\n    json: {\n      type: typeMatch ? typeMatch[1] : 'BOTH',\n      winery_mentioned: wineryMatch ? wineryMatch[1] : null,\n      filters: {\n        ...(horaMatch ? { hora: horaMatch[1] } : {}),\n        ...(visitasMatch ? { visitas: true } : {})\n      },\n      error: 'Parse failed, fallback used: ' + error.message\n    }\n  };\n}"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1856,
+                1504
+            ],
+            "id": "636cc197-aeea-4b25-8091-a696d0f2b1c0",
+            "name": "3. Parser"
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 1
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.type }}",
+                                        "rightValue": "VECTORIAL",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "sw-vec-001"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "VECTORIAL"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 1
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.type }}",
+                                        "rightValue": "RELACIONAL",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "sw-rel-001"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "RELACIONAL"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 1
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.type }}",
+                                        "rightValue": "BOTH",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        },
+                                        "id": "sw-both-001"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "BOTH"
+                        }
+                    ]
+                },
+                "options": {
+                    "fallbackOutput": "extra"
+                }
+            },
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3,
+            "position": [
+                2080,
+                1472
+            ],
+            "id": "6c541796-0a3d-48b6-8119-fa1812692680",
+            "name": "4. Switch Tipo Respuesta"
+        },
+        {
+            "parameters": {
+                "operation": "get",
+                "propertyName": "=value",
+                "key": "=contexto_bodegas:{{ $('1. Router Acción Bodegas').item.json.body.id_sesion }}",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.redis",
+            "typeVersion": 1,
+            "position": [
+                2384,
+                1648
+            ],
+            "id": "15dd675e-be79-49df-9b6b-c74cea12f43c",
+            "name": "4. Redis Contexto Bodegas",
+            "credentials": {
+                "redis": {
+                    "id": "sT6bV3qqYaCn2Ozl",
+                    "name": "Redis account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ { id: $('WEBHOOK CHAT Bodegas').item.json.body.id_sesion, respuesta: $json.output ?? '' } }}",
+                "options": {
+                    "responseCode": 200
+                }
+            },
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.5,
+            "position": [
+                3136,
+                1488
+            ],
+            "id": "56b52ed2-17bc-45f8-884c-5929449fa470",
+            "name": "6. Respuesta Chat Bodegas"
+        },
+        {
+            "parameters": {
+                "model": "qwen2.5:14b",
+                "options": {
+                    "temperature": 0
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+            "typeVersion": 1,
+            "position": [
+                1520,
+                1728
+            ],
+            "id": "524060e1-c2b0-415e-bd69-adf8d189161e",
+            "name": "LLM Clasificar",
+            "credentials": {
+                "ollamaApi": {
+                    "id": "YUqIxvu19mJk0uvM",
+                    "name": "Ollama account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "select",
+                "table": {
+                    "__rl": true,
+                    "value": "bodegas",
+                    "mode": "list",
+                    "cachedResultName": "bodegas"
+                },
+                "returnAll": true,
+                "options": {
+                    "outputColumns": [
+                        "nombre"
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.mySqlTool",
+            "typeVersion": 2.5,
+            "position": [
+                1648,
+                1728
+            ],
+            "id": "9ae30687-b22a-4175-a999-fd1f9857fd75",
+            "name": "bodegas_nombres",
+            "credentials": {
+                "mySql": {
+                    "id": "YEBbJpMV3lQGWKEn",
+                    "name": "bodegas db test"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "model": "qwen2.5:14b",
+                "options": {
+                    "temperature": 0.1
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+            "typeVersion": 1,
+            "position": [
+                2560,
+                2000
+            ],
+            "id": "0c546db3-5981-4d02-bd70-c55c148f5f32",
+            "name": "Ollama Bodegas LLM",
+            "credentials": {
+                "ollamaApi": {
+                    "id": "YUqIxvu19mJk0uvM",
+                    "name": "Ollama account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "sessionIdType": "customKey",
+                "sessionKey": "=chat_bodegas:{{ $('1. Router Acción Bodegas').item.json.body.id_sesion }}"
+            },
+            "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+            "typeVersion": 1.5,
+            "position": [
+                2656,
+                2128
+            ],
+            "id": "69023627-1da5-4435-acb2-79c1d913ef24",
+            "name": "Redis Chat Memory Bodegas",
+            "credentials": {
+                "redis": {
+                    "id": "sT6bV3qqYaCn2Ozl",
+                    "name": "Redis account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "model": "qwen3-embedding:8b"
+            },
+            "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+            "typeVersion": 1,
+            "position": [
+                2624,
+                2432
+            ],
+            "id": "1c70da3d-16db-456d-9f5c-4ced41d6d44f",
+            "name": "Embeddings Jerez",
+            "credentials": {
+                "ollamaApi": {
+                    "id": "YUqIxvu19mJk0uvM",
+                    "name": "Ollama account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "mode": "retrieve-as-tool",
+                "toolDescription": "bodegas_historia: Busca información HISTÓRICA en la base vectorial de bodegas del Marco de Jerez (historia, fundación, soleras, criaderas, viñedos albariza, marcas de vino Fino/Manzanilla/Oloroso/PX, proceso de elaboración). Incluye el nombre de la bodega en la query si está disponible. Para preguntas generales sin bodega específica (ej: 'qué bodega se fundó en los años 50'), usa la pregunta completa como búsqueda semántica. NO uses este tool para datos de contacto, horarios ni direcciones.",
+                "qdrantCollection": {
+                    "__rl": true,
+                    "value": "vino01",
+                    "mode": "list",
+                    "cachedResultName": "vino01"
+                },
+                "topK": 8,
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+            "typeVersion": 1.3,
+            "position": [
+                2624,
+                2272
+            ],
+            "id": "19a416db-066a-4cb4-a9eb-c860b66b7792",
+            "name": "bodegas_historia",
+            "credentials": {
+                "qdrantApi": {
+                    "id": "cIs6nE8Xa1aHwC1i",
+                    "name": "QdrantApi account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT nombre, direccion, poblacion, provincia, telefono, email, web, url_maps, horario, descripcion, visitas\nFROM bodegas\nWHERE 1=1\n{{ $('3. Parser').item.json.winery_mentioned ? `AND nombre LIKE '%${ $('3. Parser').item.json.winery_mentioned.replace(/'/g, \"''\") }%'` : '' }}\n{{ $('3. Parser').item.json.filters && $('3. Parser').item.json.filters.visitas === true ? 'AND visitas = 1' : '' }}\n{{ $('3. Parser').item.json.filters && $('3. Parser').item.json.filters.ciudad ? `AND (poblacion LIKE '%${ $('3. Parser').item.json.filters.ciudad.replace(/'/g, \"''\") }%' OR provincia LIKE '%${ $('3. Parser').item.json.filters.ciudad.replace(/'/g, \"''\") }%')` : '' }}\n{{ $('3. Parser').item.json.filters && $('3. Parser').item.json.filters.provincia ? `AND provincia LIKE '%${ $('3. Parser').item.json.filters.provincia.replace(/'/g, \"''\") }%'` : '' }}\nLIMIT 10",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.mySqlTool",
+            "typeVersion": 2.5,
+            "position": [
+                2704,
+                1952
+            ],
+            "id": "74d2fbea-2af7-487e-a615-961540b2e278",
+            "name": "bodegas_info",
+            "credentials": {
+                "mySql": {
+                    "id": "YEBbJpMV3lQGWKEn",
+                    "name": "bodegas db test"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "={{ $('1. Router Acción Bodegas').item.json.body.input }}",
+                "options": {
+                    "systemMessage": "=Eres un experto en historia y elaboración de vinos de la DO Jerez. Tu ÚNICA fuente de información es la base vectorial histórica (tool: bodegas_historia).\n\n━━━ DATO CLAVE ━━━\nBodega identificada: {{ $('3. Parser').item.json.winery_mentioned || 'No especificada — búsqueda semántica general' }}\n\n━━━ INSTRUCCIONES ━━━\n1. USA SIEMPRE el tool bodegas_historia. Nunca respondas sin consultarlo.\n2. Si hay bodega identificada → incluye su nombre exacto en la búsqueda junto a la pregunta.\n3. Si NO hay bodega (ej: '¿qué bodega se fundó en 1950?') → busca directamente con la pregunta completa. El sistema vectorial localizará los fragmentos relevantes semánticamente.\n4. NO inventes fechas, soleras, criaderas, marcas ni viñedos.\n5. Cita el nombre de la bodega que aparezca en los fragmentos recuperados.\n6. Si no hay información: 'No dispongo de datos sobre eso en mis documentos de bodegas de Jerez.'\n7. Máximo 150 palabras. Tono profesional."
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 3.1,
+            "position": [
+                2560,
+                1328
+            ],
+            "id": "14c231d8-a2eb-4045-89a2-ddecc7b77244",
+            "name": "5a. Agente VECTORIAL"
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "={{ $('1. Router Acción Bodegas').item.json.body.input }}",
+                "options": {
+                    "systemMessage": "=Eres un asistente de información de bodegas de la DO Jerez. Tu ÚNICA fuente de información son los datos operacionales de la base MySQL (tool: bodegas_info).\n\n━━━ DATOS CLASIFICADOS ━━━\nBodega identificada: {{ $('3. Parser').item.json.winery_mentioned || 'Sin bodega específica' }}\nFiltros activos: {{ JSON.stringify($('3. Parser').item.json.filters || {}) }}\n\n━━━ INSTRUCCIONES ━━━\n1. USA SIEMPRE el tool bodegas_info. Nunca respondas sin consultarlo.\n2. El tool filtra automáticamente por bodega y/o condiciones (visitas, ciudad, provincia).\n3. Si hay bodega identificada → el tool buscará por nombre.\n4. Si hay filtros → el tool los aplicará en la consulta SQL.\n5. Si no hay bodega ni filtros → lista bodegas disponibles (máx. 5).\n6. Con múltiples resultados → muestra máx. 5 en formato lista (nombre + dato clave).\n7. NO inventes teléfonos, direcciones ni horarios.\n8. Sin datos: 'No encuentro esa información en la base de datos.'\n9. Máximo 150 palabras. Tono amable y directo."
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 3.1,
+            "position": [
+                2560,
+                1488
+            ],
+            "id": "ece0ce7b-f8ec-4980-a7bd-fd2a743b697b",
+            "name": "5b. Agente RELACIONAL"
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "={{ $('1. Router Acción Bodegas').item.json.body.input }}",
+                "options": {
+                    "systemMessage": "=Eres un experto en vinos y bodegas de la DO Jerez. Tienes acceso a DOS fuentes de información complementarias:\n1. bodegas_historia → historia, fundación, soleras, criaderas, viñedos albariza, marcas de vino, elaboración\n2. bodegas_info → dirección, teléfono, email, horario, visitas, ubicación\n\n━━━ DATOS CLASIFICADOS ━━━\nBodega identificada: {{ $('3. Parser').item.json.winery_mentioned || 'No especificada' }}\nFiltros: {{ JSON.stringify($('3. Parser').item.json.filters || {}) }}\n\n━━━ INSTRUCCIONES ━━━\n1. Usa bodegas_historia para información histórica y de elaboración.\n2. Usa bodegas_info para datos de contacto y operacionales.\n3. Llama primero a bodegas_historia, luego a bodegas_info.\n4. Combina los resultados en una respuesta coherente.\n5. Etiqueta las fuentes: [Histórico] y [Contacto].\n6. Si un tool no tiene datos relevantes → indícalo brevemente.\n7. NO inventes datos. Sin datos: indica que no hay información.\n8. Máximo 200 palabras.\n\nContexto de sesión: {{ $json.value || 'Sin contexto previo' }}"
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 3.1,
+            "position": [
+                2560,
+                1648
+            ],
+            "id": "58d043df-edf2-4a8a-8214-e48741f54883",
+            "name": "5c. Agente BOTH"
+        }
+    ],
+    "connections": {
+        "WEBHOOK CHAT Bodegas": {
+            "main": [
+                [
+                    {
+                        "node": "1. Router Acción Bodegas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "1. Router Acción Bodegas": {
+            "main": [
+                [
+                    {
+                        "node": "2. Redis Guardar Contexto",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "0. Lista Bodegas MySQL",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "2. Redis Guardar Contexto": {
+            "main": [
+                [
+                    {
+                        "node": "3. Respuesta Init Bodegas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "0. Lista Bodegas MySQL": {
+            "main": [
+                [
+                    {
+                        "node": "2. Clasificar Tipo Respuesta",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "2. Clasificar Tipo Respuesta": {
+            "main": [
+                [
+                    {
+                        "node": "3. Parser",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "3. Parser": {
+            "main": [
+                [
+                    {
+                        "node": "4. Switch Tipo Respuesta",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "4. Switch Tipo Respuesta": {
+            "main": [
+                [
+                    {
+                        "node": "5a. Agente VECTORIAL",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "5b. Agente RELACIONAL",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "4. Redis Contexto Bodegas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "4. Redis Contexto Bodegas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "4. Redis Contexto Bodegas": {
+            "main": [
+                [
+                    {
+                        "node": "5c. Agente BOTH",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "LLM Clasificar": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "2. Clasificar Tipo Respuesta",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "bodegas_nombres": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "2. Clasificar Tipo Respuesta",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Ollama Bodegas LLM": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "5a. Agente VECTORIAL",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    },
+                    {
+                        "node": "5b. Agente RELACIONAL",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    },
+                    {
+                        "node": "5c. Agente BOTH",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Redis Chat Memory Bodegas": {
+            "ai_memory": [
+                [
+                    {
+                        "node": "5a. Agente VECTORIAL",
+                        "type": "ai_memory",
+                        "index": 0
+                    },
+                    {
+                        "node": "5b. Agente RELACIONAL",
+                        "type": "ai_memory",
+                        "index": 0
+                    },
+                    {
+                        "node": "5c. Agente BOTH",
+                        "type": "ai_memory",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Embeddings Jerez": {
+            "ai_embedding": [
+                [
+                    {
+                        "node": "bodegas_historia",
+                        "type": "ai_embedding",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "bodegas_historia": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "5a. Agente VECTORIAL",
+                        "type": "ai_tool",
+                        "index": 0
+                    },
+                    {
+                        "node": "5c. Agente BOTH",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "bodegas_info": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "5b. Agente RELACIONAL",
+                        "type": "ai_tool",
+                        "index": 0
+                    },
+                    {
+                        "node": "5c. Agente BOTH",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "5a. Agente VECTORIAL": {
+            "main": [
+                [
+                    {
+                        "node": "6. Respuesta Chat Bodegas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "5b. Agente RELACIONAL": {
+            "main": [
+                [
+                    {
+                        "node": "6. Respuesta Chat Bodegas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "5c. Agente BOTH": {
+            "main": [
+                [
+                    {
+                        "node": "6. Respuesta Chat Bodegas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "meta": {
+        "instanceId": "95082c3b954f74a59ade3cc2a9ca079a510e0fb5d69439c7acbda54156c69c88"
+    }
+}
