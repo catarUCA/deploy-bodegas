@@ -39,6 +39,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-secret_default}
       N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
       INGESTA_WEBHOOK_URL: ${INGESTA_WEBHOOK_URL}
+      CHAT_WEBHOOK_URL: ${CHAT_WEBHOOK_URL}
     depends_on:
       - mysql
     volumes:
