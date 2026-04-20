@@ -18,7 +18,13 @@ export class ChatService {
    * Generates a new session ID for the current visit.
    */
   refreshSession() {
-    this.sessionId = crypto.randomUUID();
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      this.sessionId = crypto.randomUUID();
+    } else {
+      // Fallback para contextos no seguros (HTTP) o navegadores antiguos
+      this.sessionId = Math.random().toString(36).substring(2, 11) + 
+                       Date.now().toString(36);
+    }
   }
 
   getSessionId(): string | null {

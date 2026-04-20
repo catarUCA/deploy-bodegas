@@ -2,7 +2,7 @@ import { Component, inject, OnInit, ViewChild, ElementRef, AfterViewChecked } fr
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from '../../core/services/chat.service';
-import { finalize } from 'rxjs';
+import { finalize, timeout, catchError, of } from 'rxjs';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -160,11 +160,17 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
 
   private initChat() {
     this.loading = true;
+    console.log('📡 Iniciando chat con sesión:', this.chatService.getSessionId());
+    
     this.chatService.initializeChat().pipe(
-      finalize(() => this.loading = false)
+      timeout(15000), // 15s safety timeout
+      finalize(() => {
+        this.loading = false;
+        console.log('🏁 Proceso de inicialización finalizado.');
+      })
     ).subscribe({
       next: (res) => {
-        // Assume n8n returns an initial message or we add a default greeting
+        console.log('✅ Chat inicializado con éxito:', res);
         this.messages.push({
           role: 'assistant',
           content: 'Bienvenido al Archivo Histórico de las Bodegas del Marco de Jerez. He revisado los registros y estoy listo para asistirle en su investigación. ¿Sobre qué bodega o suceso histórico desea consultar hoy?',
@@ -172,10 +178,10 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
         });
       },
       error: (err) => {
-        console.error('Init error:', err);
+        console.error('❌ Error de inicialización:', err);
         this.messages.push({
           role: 'assistant',
-          content: 'Sin embargo, hay un problema de conexión con los legajos físicos. Por favor, intente recargar la página.',
+          content: 'Sin embargo, hay un problema de conexión con los legajos físicos. Por favor, asegúrese de que el sistema de archivo esté encendido e intente recargar la página.',
           timestamp: new Date()
         });
       }
@@ -194,11 +200,14 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
 
     this.userInput = '';
     this.loading = true;
+    console.log('✉️ Enviando mensaje...');
 
     this.chatService.sendMessage(userMsg).pipe(
+      timeout(35000), // 35s safety timeout (n8n + LLM)
       finalize(() => this.loading = false)
     ).subscribe({
       next: (res) => {
+        console.log('📩 Respuesta recibida:', res);
         if (res.success && res.data && res.data.respuesta) {
           this.messages.push({
             role: 'assistant',
@@ -208,6 +217,7 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
         }
       },
       error: (err) => {
+        console.error('❌ Error enviando mensaje:', err);
         this.messages.push({
           role: 'assistant',
           content: 'Lo lamento, no he podido recuperar ese legajo en este momento. Por favor, repita la consulta.',
