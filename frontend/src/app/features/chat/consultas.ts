@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, inject, OnInit, ViewChild, ElementRef, AfterViewChecked, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from '../../core/services/chat.service';
@@ -63,7 +63,7 @@ interface Message {
 
           <!-- Loading Indicator -->
           <div *ngIf="loading" class="flex flex-col gap-2 items-start animate-fade-in">
-            <span class="font-sans text-[9px] uppercase tracking-widest font-bold opacity-40">Archivero buscando...</span>
+            <span class="font-sans text-[9px] uppercase tracking-widest font-bold opacity-40">Archivero buscando (v1.0.5)...</span>
             <div class="bg-[#FDFDF0] border border-outline/10 p-4 border-radius-sm shadow-sm flex items-center gap-2">
               <div class="flex gap-1.5 items-center px-1">
                 <div class="w-1.5 h-1.5 bg-secondary rounded-full animate-typing-dot"></div>
@@ -146,13 +146,14 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   
   private chatService = inject(ChatService);
+  private cdr = inject(ChangeDetectorRef);
   
   messages: Message[] = [];
   userInput = '';
   loading = false;
 
   ngOnInit() {
-    console.log('📦 Versión del Sistema de Consultas: 1.0.4');
+    console.log('📦 Versión del Sistema de Consultas: 1.0.5');
     this.initChat();
   }
 
@@ -168,7 +169,8 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
       timeout(15000), // 15s safety timeout
       finalize(() => {
         this.loading = false;
-        console.log('🏁 Proceso de inicialización finalizado.');
+        this.cdr.detectChanges();
+        console.log('🏁 Proceso de inicialización finalizado. Loading is now:', this.loading);
       })
     ).subscribe({
       next: (res) => {
@@ -178,14 +180,16 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
           content: 'Bienvenido al Archivo Histórico de las Bodegas del Marco de Jerez. He revisado los registros y estoy listo para asistirle en su investigación. ¿Sobre qué bodega o suceso histórico desea consultar hoy?',
           timestamp: new Date()
         }];
+        this.cdr.detectChanges();
       },
       error: (err) => {
         console.error('❌ Error de inicialización:', err);
-        this.messages.push({
+        this.messages = [...this.messages, {
           role: 'assistant',
           content: 'Sin embargo, hay un problema de conexión con los legajos físicos. Por favor, asegúrese de que el sistema de archivo esté encendido e intente recargar la página.',
           timestamp: new Date()
-        });
+        }];
+        this.cdr.detectChanges();
       }
     });
   }
