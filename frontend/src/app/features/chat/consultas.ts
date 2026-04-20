@@ -18,7 +18,8 @@ interface Message {
     <div class="min-h-screen bg-background flex flex-col items-center py-12 px-4 selection:bg-secondary/20">
       
       <!-- Header -->
-      <header class="w-full max-w-2xl text-center mb-12">
+      <header class="w-full max-w-2xl text-center mb-8 relative">
+        <div class="absolute -top-8 right-0 font-sans text-[8px] opacity-20 tracking-widest">VER. 1.0.4</div>
         <span class="font-sans text-[10px] uppercase tracking-[0.3em] text-secondary font-bold">The Heritage Archive</span>
         <h1 class="font-serif text-5xl text-primary mt-4 font-bold tracking-tight">Consultas al Archivo</h1>
         <p class="font-serif italic text-on-surface-variant mt-4 opacity-70">Pregunte sobre la historia, fundaciones y secretos de las bodegas del Marco de Jerez.</p>
@@ -26,7 +27,7 @@ interface Message {
       </header>
 
       <!-- Chat Container -->
-      <main class="w-full max-w-3xl flex-1 flex flex-col bg-white/40 backdrop-blur-sm border border-outline/5 shadow-2xl relative overflow-hidden">
+      <main class="w-full max-w-3xl h-[600px] flex flex-col bg-white/40 backdrop-blur-sm border border-outline/5 shadow-2xl relative overflow-hidden">
         
         <!-- Messages Area -->
         <div #scrollContainer class="flex-1 overflow-y-auto p-6 md:p-10 space-y-8 scroll-smooth custom-scrollbar">
@@ -151,6 +152,7 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
   loading = false;
 
   ngOnInit() {
+    console.log('📦 Versión del Sistema de Consultas: 1.0.4');
     this.initChat();
   }
 
@@ -171,11 +173,11 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
     ).subscribe({
       next: (res) => {
         console.log('✅ Chat inicializado con éxito:', res);
-        this.messages.push({
+        this.messages = [...this.messages, {
           role: 'assistant',
           content: 'Bienvenido al Archivo Histórico de las Bodegas del Marco de Jerez. He revisado los registros y estoy listo para asistirle en su investigación. ¿Sobre qué bodega o suceso histórico desea consultar hoy?',
           timestamp: new Date()
-        });
+        }];
       },
       error: (err) => {
         console.error('❌ Error de inicialización:', err);
@@ -209,20 +211,20 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
       next: (res) => {
         console.log('📩 Respuesta recibida:', res);
         if (res.success && res.data && res.data.respuesta) {
-          this.messages.push({
+          this.messages = [...this.messages, {
             role: 'assistant',
             content: res.data.respuesta,
             timestamp: new Date()
-          });
+          }];
         }
       },
       error: (err) => {
         console.error('❌ Error enviando mensaje:', err);
-        this.messages.push({
+        this.messages = [...this.messages, {
           role: 'assistant',
           content: 'Lo lamento, no he podido recuperar ese legajo en este momento. Por favor, repita la consulta.',
           timestamp: new Date()
-        });
+        }];
       }
     });
   }
