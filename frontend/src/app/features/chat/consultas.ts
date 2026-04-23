@@ -19,7 +19,7 @@ interface Message {
       
       <!-- Header -->
       <header class="w-full max-w-2xl text-center mb-8 relative">
-        <div class="absolute -top-8 right-0 font-sans text-[8px] opacity-20 tracking-widest">VER. 1.0.4</div>
+        <div class="absolute -top-8 right-0 font-sans text-[8px] opacity-20 tracking-widest">VER. {{APP_VERSION}}</div>
         <span class="font-sans text-[10px] uppercase tracking-[0.3em] text-secondary font-bold">The Heritage Archive</span>
         <h1 class="font-serif text-5xl text-primary mt-4 font-bold tracking-tight">Consultas al Archivo</h1>
         <p class="font-serif italic text-on-surface-variant mt-4 opacity-70">Pregunte sobre la historia, fundaciones y secretos de las bodegas del Marco de Jerez.</p>
@@ -63,7 +63,7 @@ interface Message {
 
           <!-- Loading Indicator -->
           <div *ngIf="loading" class="flex flex-col gap-2 items-start animate-fade-in">
-            <span class="font-sans text-[9px] uppercase tracking-widest font-bold opacity-40">Archivero buscando (v1.0.5)...</span>
+            <span class="font-sans text-[9px] uppercase tracking-widest font-bold opacity-40">Archivero buscando (v{{APP_VERSION}})...</span>
             <div class="bg-[#FDFDF0] border border-outline/10 p-4 border-radius-sm shadow-sm flex items-center gap-2">
               <div class="flex gap-1.5 items-center px-1">
                 <div class="w-1.5 h-1.5 bg-secondary rounded-full animate-typing-dot"></div>
@@ -143,17 +143,18 @@ interface Message {
   `]
 })
 export class ConsultasComponent implements OnInit, AfterViewChecked {
+  readonly APP_VERSION = '1.0.8';
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
-  
+
   private chatService = inject(ChatService);
   private cdr = inject(ChangeDetectorRef);
-  
+
   messages: Message[] = [];
   userInput = '';
   loading = false;
 
   ngOnInit() {
-    console.log('📦 Versión del Sistema de Consultas: 1.0.6');
+    console.log(`📦 Versión del Sistema de Consultas: ${this.APP_VERSION}`);
     this.initChat();
   }
 
@@ -164,7 +165,7 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
   private initChat() {
     this.loading = true;
     console.log('📡 Iniciando chat con sesión:', this.chatService.getSessionId());
-    
+
     this.chatService.initializeChat().pipe(
       timeout(15000), // 15s safety timeout
       finalize(() => {
@@ -198,28 +199,32 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
     if (!this.userInput.trim() || this.loading) return;
 
     const userMsg = this.userInput.trim();
-    this.messages.push({
+    this.messages = [...this.messages, {
       role: 'user',
       content: userMsg,
       timestamp: new Date()
-    });
+    }];
 
     this.userInput = '';
     this.loading = true;
     console.log('✉️ Enviando mensaje...');
+    this.cdr.detectChanges();
 
     this.chatService.sendMessage(userMsg).pipe(
       timeout(35000), // 35s safety timeout (n8n + LLM)
-      finalize(() => this.loading = false)
+      finalize(() => {
+        this.loading = false;
+        this.cdr.detectChanges();
+      })
     ).subscribe({
       next: (res) => {
         console.log('📩 Respuesta cruda del servidor:', res);
-        
+
         let content = '';
         if (res.success && res.data) {
           // Intentar encontrar el contenido en varios campos comunes
           content = res.data.respuesta || res.data.text || res.data.output || res.data.message || '';
-          
+
           // Si res.data es directamente un string (depende de cómo n8n devuelva el JSON)
           if (!content && typeof res.data === 'string') content = res.data;
         }
@@ -247,6 +252,7 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
           content: 'Lo lamento, no he podido recuperar ese legajo en este momento. Por favor, repita la consulta.',
           timestamp: new Date()
         }];
+        this.cdr.detectChanges();
       }
     });
   }
@@ -254,6 +260,6 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
   private scrollToBottom(): void {
     try {
       this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollHeight;
-    } catch(err) { }
+    } catch (err) { }
   }
 }
