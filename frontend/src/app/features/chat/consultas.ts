@@ -153,7 +153,7 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
   loading = false;
 
   ngOnInit() {
-    console.log('📦 Versión del Sistema de Consultas: 1.0.5');
+    console.log('📦 Versión del Sistema de Consultas: 1.0.6');
     this.initChat();
   }
 
@@ -213,14 +213,32 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
       finalize(() => this.loading = false)
     ).subscribe({
       next: (res) => {
-        console.log('📩 Respuesta recibida:', res);
-        if (res.success && res.data && res.data.respuesta) {
+        console.log('📩 Respuesta cruda del servidor:', res);
+        
+        let content = '';
+        if (res.success && res.data) {
+          // Intentar encontrar el contenido en varios campos comunes
+          content = res.data.respuesta || res.data.text || res.data.output || res.data.message || '';
+          
+          // Si res.data es directamente un string (depende de cómo n8n devuelva el JSON)
+          if (!content && typeof res.data === 'string') content = res.data;
+        }
+
+        if (content) {
           this.messages = [...this.messages, {
             role: 'assistant',
-            content: res.data.respuesta,
+            content: content,
+            timestamp: new Date()
+          }];
+        } else {
+          console.warn('⚠️ La respuesta no contiene un campo de texto reconocido (esperado: "respuesta")');
+          this.messages = [...this.messages, {
+            role: 'assistant',
+            content: 'He recibido una señal del archivo pero no logro descifrar el contenido. Por favor, intente reformular su pregunta.',
             timestamp: new Date()
           }];
         }
+        this.cdr.detectChanges();
       },
       error: (err) => {
         console.error('❌ Error enviando mensaje:', err);
