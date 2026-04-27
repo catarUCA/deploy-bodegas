@@ -79,18 +79,17 @@ services:
       - "8080:80"
     networks:
       - bodegas-network
-
   # ─── WATCHTOWER (Automatic Updates) ─────────────────────────────────────────
-  watchtower:
-    image: containrrr/watchtower
-    container_name: bodegas-watchtower
-    environment:
-      - DOCKER_API_VERSION=1.44
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    # Revisa cada minuto si hay nuevas imágenes en Docker Hub
-    command: --interval 60 --cleanup
-    restart: always
+  # watchtower:
+  #   image: containrrr/watchtower
+  #   container_name: bodegas-watchtower
+  #   environment:
+  #     - DOCKER_API_VERSION=1.44
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   # Revisa cada minuto si hay nuevas imágenes en Docker Hub
+  #   command: --interval 60 --cleanup
+  #   restart: always
 
 networks:
   bodegas-network:

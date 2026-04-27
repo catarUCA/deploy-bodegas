@@ -34,27 +34,32 @@ import { AuthService } from '../../../core/services/auth.service';
             {{ loading ? 'Verificando...' : 'Acceder' }}
           </button>
           
-          <button 
-            routerLink="/login"
-            class="text-[10px] uppercase tracking-widest font-bold text-secondary hover:text-primary transition-colors">
-            Volver a introducir email
-          </button>
+            <button 
+              routerLink="/login"
+              class="text-[10px] uppercase tracking-widest font-bold text-secondary hover:text-primary transition-colors">
+              Volver a introducir email
+            </button>
+            
+            <div *ngIf="errorMessage" class="text-error text-xs font-medium p-3 bg-error/10 border border-error/20">
+              {{ errorMessage }}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  `,
-  styles: [`
-    :host { display: block; }
-  `]
-})
-export class VerifyComponent implements OnInit {
-  private authService = inject(AuthService);
-  private router = inject(Router);
-  private route = inject(ActivatedRoute);
-
-  email = '';
-  code = '';
-  loading = false;
+    `,
+    styles: [`
+      :host { display: block; }
+    `]
+  })
+  export class VerifyComponent implements OnInit {
+    private authService = inject(AuthService);
+    private router = inject(Router);
+    private route = inject(ActivatedRoute);
+  
+    email = '';
+    code = '';
+    loading = false;
+    errorMessage = '';
 
   ngOnInit() {
     this.email = this.route.snapshot.queryParamMap.get('email') || '';
@@ -66,17 +71,24 @@ export class VerifyComponent implements OnInit {
   onVerify() {
     if (!this.code || this.code.length !== 6) return;
     this.loading = true;
+    this.errorMessage = '';
 
-    this.authService.verifyCode(this.email, this.code).subscribe({
-      next: (res) => {
-        if (res.success) {
-          this.router.navigate(['/form']);
+    import('rxjs').then(({ finalize }) => {
+      this.authService.verifyCode(this.email, this.code).pipe(
+        finalize(() => this.loading = false)
+      ).subscribe({
+        next: (res) => {
+          if (res.success) {
+            this.router.navigate(['/form']);
+          } else {
+            this.errorMessage = res.message || 'Código inválido.';
+          }
+        },
+        error: (err) => {
+          console.error(err);
+          this.errorMessage = err.error?.message || 'Error de conexión. Inténtalo de nuevo.';
         }
-      },
-      error: (err) => {
-        console.error(err);
-        this.loading = false;
-      }
+      });
     });
   }
 }

@@ -10,7 +10,11 @@ const authMiddleware = (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET no configurado');
+    }
+    const decoded = jwt.verify(token, jwtSecret);
     req.userId = decoded.userId;
     next();
   } catch (err) {

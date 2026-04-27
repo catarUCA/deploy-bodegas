@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, ViewChild, ElementRef, AfterViewChecked, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, OnInit, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from '../../core/services/chat.service';
@@ -142,7 +142,7 @@ interface Message {
     }
   `]
 })
-export class ConsultasComponent implements OnInit, AfterViewChecked {
+export class ConsultasComponent implements OnInit {
   readonly APP_VERSION = '1.0.8';
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
 
@@ -156,10 +156,6 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
   ngOnInit() {
     console.log(`📦 Versión del Sistema de Consultas: ${this.APP_VERSION}`);
     this.initChat();
-  }
-
-  ngAfterViewChecked() {
-    this.scrollToBottom();
   }
 
   private initChat() {
@@ -182,6 +178,7 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
           timestamp: new Date()
         }];
         this.cdr.detectChanges();
+        setTimeout(() => this.scrollToBottom(), 50);
       },
       error: (err) => {
         console.error('❌ Error de inicialización:', err);
@@ -191,6 +188,7 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
           timestamp: new Date()
         }];
         this.cdr.detectChanges();
+        setTimeout(() => this.scrollToBottom(), 50);
       }
     });
   }
@@ -209,6 +207,7 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
     this.loading = true;
     console.log('✉️ Enviando mensaje...');
     this.cdr.detectChanges();
+    setTimeout(() => this.scrollToBottom(), 50);
 
     this.chatService.sendMessage(userMsg).pipe(
       timeout(35000), // 35s safety timeout (n8n + LLM)
@@ -244,6 +243,7 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
           }];
         }
         this.cdr.detectChanges();
+        setTimeout(() => this.scrollToBottom(), 50);
       },
       error: (err) => {
         console.error('❌ Error enviando mensaje:', err);
@@ -253,6 +253,7 @@ export class ConsultasComponent implements OnInit, AfterViewChecked {
           timestamp: new Date()
         }];
         this.cdr.detectChanges();
+        setTimeout(() => this.scrollToBottom(), 50);
       }
     });
   }

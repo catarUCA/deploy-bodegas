@@ -25,6 +25,11 @@ import { AuthService } from '../../../core/services/auth.service';
             <h2 class="font-serif text-4xl text-primary mt-4 font-bold">Censo de Bodegas</h2>
           </div>
           
+          <!-- Notificaciones UI -->
+          <div *ngIf="notification" class="mb-8 p-4 font-sans text-sm font-medium border text-center transition-all" [ngClass]="notification.type === 'success' ? 'bg-secondary/10 border-secondary text-primary' : 'bg-error/10 border-error text-error'">
+            {{ notification.message }}
+          </div>
+          
           <div class="bg-white p-8 md:p-12 shadow-sm border border-outline/5">
             <form [formGroup]="bodegaForm" (ngSubmit)="onSubmit()" class="space-y-12">
               
@@ -195,6 +200,7 @@ export class BodegaFormComponent implements OnInit {
   existingFiles: string[] = [];
   submitting = false;
   existingPdfPath: string | null = null;
+  notification: { message: string, type: 'success' | 'error' } | null = null;
   days = [
     { key: 'lunes', label: 'Lunes' },
     { key: 'martes', label: 'Martes' },
@@ -253,7 +259,6 @@ export class BodegaFormComponent implements OnInit {
             winery_email: d.email,
             winery_web: d.web,
             winery_maps: d.url_maps,
-            winery_schedule: d.horario,
             winery_description: d.descripcion,
             permite_visitas: !!d.visitas
           });
@@ -290,10 +295,10 @@ export class BodegaFormComponent implements OnInit {
     });
   }
 
-  onFileSelected(event: any) {
-    const files = event.target.files;
-    if (files.length > 0) {
-      this.selectedFiles = [files[0]];
+  onFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      this.selectedFiles = [input.files[0]];
     }
   }
 
@@ -350,17 +355,22 @@ export class BodegaFormComponent implements OnInit {
     ).subscribe({
       next: (res) => {
         if (res.success) {
-          alert('¡Bodega guardada con éxito!');
+          this.showNotification('¡Bodega guardada con éxito en el Archivo!', 'success');
           this.loadData();
           this.selectedFiles = [];
         } else {
-          alert(res.message || 'Error al guardar los datos');
+          this.showNotification(res.message || 'Error al guardar los datos', 'error');
         }
       },
       error: (err) => {
         console.error('Error saving data', err);
-        alert('Error al conectar con el servidor');
+        this.showNotification('Error al conectar con el servidor', 'error');
       }
     });
+  }
+
+  private showNotification(message: string, type: 'success' | 'error') {
+    this.notification = { message, type };
+    setTimeout(() => this.notification = null, 5000); // Hide after 5s
   }
 }

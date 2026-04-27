@@ -8,6 +8,10 @@ const authController = {
   requestCode: async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ success: false, message: 'Email es requerido.' });
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return res.status(400).json({ success: false, message: 'Formato de email inválido.' });
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -51,16 +55,21 @@ const authController = {
         user = { id: userId, email };
       }
 
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        throw new Error('JWT_SECRET no está definido en el servidor');
+      }
+
       const token = jwt.sign(
         { userId: user.id },
-        process.env.JWT_SECRET || 'supersecretkey',
+        jwtSecret,
         { expiresIn: '7d' }
       );
 
       return res.json({ success: true, token });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ success: false, message: 'Error al verificar el código.' });
+      return res.status(500).json({ success: false, message: 'Error interno del servidor.' });
     }
   }
 };

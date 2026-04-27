@@ -20,11 +20,11 @@ const normalizeName = (name) => {
     .trim();
 };
 
-const calculateHash = (filePath) => {
+const calculateHash = async (filePath) => {
   try {
     if (!filePath || !fs.existsSync(filePath)) return null;
-    const fileBuffer = fs.readFileSync(filePath);
-    const hashSum = crypto.createHash('md5');
+    const fileBuffer = await fs.promises.readFile(filePath);
+    const hashSum = crypto.createHash('sha256');
     hashSum.update(fileBuffer);
     return hashSum.digest('hex');
   } catch (err) {
@@ -63,51 +63,86 @@ const bodegaController = {
       let physicalRenamed = false;
       let isRename = false;
       const cleanNewName = normalizeName(req.body.winery_name || 'bodega');
+      const nameChanged = oldData && req.body.winery_name !== oldData.winery_name;
+      
+      const uploadsDir = path.join(__dirname, '..', 'uploads');
+      const tempDir = path.join(uploadsDir, 'temp');
+
+      let hashesMatch = false;
 
       if (req.file) {
-        // New upload
-        pdf_path = `/uploads/${req.file.filename}`;
-        
-        // Hash comparison
+        // El archivo nuevo está en /uploads/temp/nombre_incoming.pdf
+        const tempLocalPath = path.join(tempDir, req.file.filename);
+        const finalFilename = `${cleanNewName}${path.extname(req.file.originalname).toLowerCase()}`;
+        const finalLocalPath = path.join(uploadsDir, finalFilename);
+
         if (oldPdfPath) {
-          const oldLocalPath = path.join(__dirname, '..', 'uploads', extractFilename(oldPdfPath));
-          const newLocalPath = path.join(__dirname, '..', 'uploads', req.file.filename);
-          
-          const oldHash = calculateHash(oldLocalPath);
-          const newHash = calculateHash(newLocalPath);
+          const oldLocalPath = path.join(uploadsDir, extractFilename(oldPdfPath));
+          const oldHash = await calculateHash(oldLocalPath);
+          const newHash = await calculateHash(tempLocalPath);
           
           if (oldHash && newHash && oldHash === newHash) {
-            isRename = true;
-            console.log(`[Hash Match] File content is identical for ${req.body.winery_name}`);
+            hashesMatch = true;
           }
         }
+
+        if (hashesMatch) {
+          // CONTENIDO IDÉNTICO
+          try {
+            await fs.promises.unlink(tempLocalPath); // No necesitamos el nuevo
+          } catch(e) { console.error('Cleanup temp error', e); }
+
+          if (!nameChanged) {
+            console.log(`[Bypass] Identical file and name. No update needed.`);
+            pdf_path = oldPdfPath; // Se queda como estaba
+          } else {
+            console.log(`[Hash Match] Content identical but name changed. Renaming old file.`);
+            // Cambiar nombre al archivo físico viejo para que coincida con la nueva bodega
+            const oldLocalPath = path.join(uploadsDir, extractFilename(oldPdfPath));
+            if (fs.existsSync(oldLocalPath)) {
+              try { await fs.promises.rename(oldLocalPath, finalLocalPath); } catch(e) {}
+              physicalRenamed = true;
+            }
+            pdf_path = `/uploads/${finalFilename}`;
+            isRename = true;
+          }
+        } else {
+          // CONTENIDO DIFERENTE O ARCHIVO NUEVO
+          console.log(`[New Content] Moving file from temp to uploads: ${finalFilename}`);
+          // Si existía un archivo viejo con otro nombre, lo borramos (o lo dejamos para que lo borre el webhook .then)
+          try {
+            if (fs.existsSync(finalLocalPath)) await fs.promises.unlink(finalLocalPath); // Limpieza preventiva si el nombre coincide
+            await fs.promises.rename(tempLocalPath, finalLocalPath);
+          } catch(e) { console.error('Error in new content file ops', e); }
+          pdf_path = `/uploads/${finalFilename}`;
+          isRename = false;
+        }
       } else if (req.body.existing_pdf_path) {
-        // Keeping existing file - check if winery name change requires a rename on disk
-        pdf_path = req.body.existing_pdf_path;
-        isRename = true; // No new content, so it's a rename (or no-op)
+        // No se subió archivo, solo se cambió (o no) el nombre
+        // Sanitize incoming path to prevent path traversal
+        const safeBaseName = path.basename(req.body.existing_pdf_path);
+        pdf_path = `/uploads/${safeBaseName}`;
         
-        const currentFilename = extractFilename(pdf_path);
-        const ext = path.extname(currentFilename).toLowerCase();
-        
-        // Standard expected name (might include timestamp if already processed)
-        // If it doesn't match winery name, we rename it
-        if (!currentFilename.startsWith(cleanNewName)) {
-          const expectedFilename = `${cleanNewName}_${Date.now()}${ext}`;
-          const oldLocal = path.join(__dirname, '..', 'uploads', currentFilename);
-          const newLocal = path.join(__dirname, '..', 'uploads', expectedFilename);
+        if (nameChanged) {
+          isRename = true;
+          const currentFilename = safeBaseName;
+          const ext = path.extname(currentFilename).toLowerCase();
+          const expectedFilename = `${cleanNewName}${ext}`;
           
-          if (fs.existsSync(oldLocal)) {
-            fs.renameSync(oldLocal, newLocal);
-            pdf_path = `/uploads/${expectedFilename}`;
-            physicalRenamed = true;
+          if (currentFilename !== expectedFilename) {
+            const oldLocal = path.join(uploadsDir, currentFilename);
+            const newLocal = path.join(uploadsDir, expectedFilename);
+            if (fs.existsSync(oldLocal)) {
+              try { await fs.promises.rename(oldLocal, newLocal); } catch(e){}
+              pdf_path = `/uploads/${expectedFilename}`;
+              physicalRenamed = true;
+            }
           }
         }
       }
 
       // 3. Decide if we call the webhook
-      const contentChanged = !!req.file && !isRename;
-      const pathChanged = (pdf_path !== oldPdfPath);
-      const shouldCallWebhook = contentChanged || pathChanged;
+      const shouldCallWebhook = (!!req.file && !hashesMatch) || (isRename);
 
       // 4. Save to DB
       await queries.saveBodega(req.userId, { ...req.body, pdf_path });
@@ -123,10 +158,10 @@ const bodegaController = {
             bodega_name: req.body.winery_name,
             rename: isRename
           }).then(() => {
-            // Cleanup old file ONLY after successful webhook notification
-            if (oldPdfPath && (pdf_path !== oldPdfPath) && !physicalRenamed) {
+            // Limpieza del archivo viejo SOLO si el nombre cambió físicamente (no si fue sobrescrito)
+            if (oldPdfPath && (pdf_path !== oldPdfPath) && !physicalRenamed && !hashesMatch) {
               const oldFilename = extractFilename(oldPdfPath);
-              const deletePath = path.join(__dirname, '..', 'uploads', oldFilename);
+              const deletePath = path.join(uploadsDir, oldFilename);
               if (fs.existsSync(deletePath)) {
                 fs.unlink(deletePath, (err) => {
                   if (err) console.error('Delayed Cleanup Error:', err.message);

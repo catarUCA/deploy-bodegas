@@ -12,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ─── Middleware ──────────────────────────────────────────────────────────────
-app.use(cors());
+app.use(cors({ origin: process.env.ALLOWED_ORIGIN || '*' })); // Default to * but allow configuring via env
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -29,6 +29,15 @@ const loginLimiter = rateLimit({
 app.use('/auth', loginLimiter, authRoutes);
 app.use('/api/bodegas', bodegaRoutes);
 app.use('/api/chat', chatRoutes);
+
+// Health check
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('[Global Error]', err.stack);
+  res.status(500).json({ success: false, message: 'Ocurrió un error inesperado en el servidor.' });
+});
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {

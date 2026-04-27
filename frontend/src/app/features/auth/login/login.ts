@@ -26,41 +26,53 @@ import { AuthService } from '../../../core/services/auth.service';
               placeholder="tu@email.com" />
           </div>
           
-          <button 
-            (click)="onRequestCode()"
-            [disabled]="loading"
-            class="w-full bg-primary text-white py-4 font-bold uppercase tracking-widest text-xs hover:bg-secondary transition-all disabled:opacity-50">
-            {{ loading ? 'Enviando...' : 'Enviar Código' }}
-          </button>
+            <button 
+              (click)="onRequestCode()"
+              [disabled]="loading"
+              class="w-full bg-primary text-white py-4 font-bold uppercase tracking-widest text-xs hover:bg-secondary transition-all disabled:opacity-50">
+              {{ loading ? 'Enviando...' : 'Enviar Código' }}
+            </button>
+            
+            <div *ngIf="errorMessage" class="text-error text-xs font-medium p-3 bg-error/10 border border-error/20">
+              {{ errorMessage }}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  `,
-  styles: [`
-    :host { display: block; }
-  `]
-})
-export class LoginComponent {
-  private authService = inject(AuthService);
-  private router = inject(Router);
-
-  email = '';
-  loading = false;
+    `,
+    styles: [`
+      :host { display: block; }
+    `]
+  })
+  export class LoginComponent {
+    private authService = inject(AuthService);
+    private router = inject(Router);
+  
+    email = '';
+    loading = false;
+    errorMessage = '';
 
   async onRequestCode() {
     if (!this.email) return;
     this.loading = true;
+    this.errorMessage = '';
 
-    this.authService.requestCode(this.email).subscribe({
-      next: (res) => {
-        if (res.success) {
-          this.router.navigate(['/verify'], { queryParams: { email: this.email } });
+    import('rxjs').then(({ finalize }) => {
+      this.authService.requestCode(this.email).pipe(
+        finalize(() => this.loading = false)
+      ).subscribe({
+        next: (res) => {
+          if (res.success) {
+            this.router.navigate(['/verify'], { queryParams: { email: this.email } });
+          } else {
+            this.errorMessage = res.message || 'Error al solicitar el código.';
+          }
+        },
+        error: (err) => {
+          console.error(err);
+          this.errorMessage = err.error?.message || 'Error de conexión. Inténtalo de nuevo.';
         }
-      },
-      error: (err) => {
-        console.error(err);
-        this.loading = false;
-      }
+      });
     });
   }
 }
