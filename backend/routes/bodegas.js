@@ -16,9 +16,9 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     const wineryName = req.body.winery_name || 'bodega';
     // Clean name: replace spaces and special chars with underscores
-    const cleanName = wineryName.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${cleanName}${ext}`);
+    const timestamp = Date.now();
+    cb(null, `${cleanName}_${timestamp}${ext}`);
   },
 });
 

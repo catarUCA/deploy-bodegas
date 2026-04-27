@@ -20,6 +20,7 @@ const chatController = {
         id_sesion,
         jerez_context: 'Consulta pública desde el portal del archivo'
       }, { timeout: 10000 }); // 10s timeout
+      console.log(`[ChatController] n8n INIT response for ${id_sesion}:`, response.data);
       return res.json({ success: true, data: response.data });
     } catch (err) {
       console.error('Chat Init Error:', err.message);
@@ -49,6 +50,7 @@ const chatController = {
         id_sesion,
         input
       }, { timeout: 30000 }); // 30s timeout for LLM
+      console.log(`[ChatController] n8n MESSAGE response for ${id_sesion}:`, response.data);
       return res.json({ success: true, data: response.data });
     } catch (err) {
       console.error('Chat Message Error:', err.message);

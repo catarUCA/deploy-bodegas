@@ -2,6 +2,7 @@ const queries = require('../db/queries');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 require('dotenv').config();
 
 // Helpers suggested by audit
@@ -17,6 +18,19 @@ const normalizeName = (name) => {
     .replace(/[^a-z0-9]/gi, '_')
     .replace(/_+/g, '_')
     .trim();
+};
+
+const calculateHash = (filePath) => {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return null;
+    const fileBuffer = fs.readFileSync(filePath);
+    const hashSum = crypto.createHash('md5');
+    hashSum.update(fileBuffer);
+    return hashSum.digest('hex');
+  } catch (err) {
+    console.error('Error calculating hash:', err.message);
+    return null;
+  }
 };
 
 const bodegaController = {
@@ -44,24 +58,44 @@ const bodegaController = {
         }
       }
 
-      // 2. Determine new path and handle renames if necessary
+      // 2. Determine paths and content changes
       let pdf_path = null;
       let physicalRenamed = false;
+      let isRename = false;
       const cleanNewName = normalizeName(req.body.winery_name || 'bodega');
 
       if (req.file) {
-        // New upload handles itself via Multer
+        // New upload
         pdf_path = `/uploads/${req.file.filename}`;
+        
+        // Hash comparison
+        if (oldPdfPath) {
+          const oldLocalPath = path.join(__dirname, '..', 'uploads', extractFilename(oldPdfPath));
+          const newLocalPath = path.join(__dirname, '..', 'uploads', req.file.filename);
+          
+          const oldHash = calculateHash(oldLocalPath);
+          const newHash = calculateHash(newLocalPath);
+          
+          if (oldHash && newHash && oldHash === newHash) {
+            isRename = true;
+            console.log(`[Hash Match] File content is identical for ${req.body.winery_name}`);
+          }
+        }
       } else if (req.body.existing_pdf_path) {
         // Keeping existing file - check if winery name change requires a rename on disk
         pdf_path = req.body.existing_pdf_path;
+        isRename = true; // No new content, so it's a rename (or no-op)
+        
         const currentFilename = extractFilename(pdf_path);
         const ext = path.extname(currentFilename).toLowerCase();
-        const expectedFilename = `${cleanNewName}${ext}`;
-
-        if (currentFilename !== expectedFilename) {
+        
+        // Standard expected name (might include timestamp if already processed)
+        // If it doesn't match winery name, we rename it
+        if (!currentFilename.startsWith(cleanNewName)) {
+          const expectedFilename = `${cleanNewName}_${Date.now()}${ext}`;
           const oldLocal = path.join(__dirname, '..', 'uploads', currentFilename);
           const newLocal = path.join(__dirname, '..', 'uploads', expectedFilename);
+          
           if (fs.existsSync(oldLocal)) {
             fs.renameSync(oldLocal, newLocal);
             pdf_path = `/uploads/${expectedFilename}`;
@@ -71,7 +105,7 @@ const bodegaController = {
       }
 
       // 3. Decide if we call the webhook
-      const contentChanged = !!req.file;
+      const contentChanged = !!req.file && !isRename;
       const pathChanged = (pdf_path !== oldPdfPath);
       const shouldCallWebhook = contentChanged || pathChanged;
 
@@ -86,23 +120,23 @@ const bodegaController = {
             old_file: extractFilename(oldPdfPath),
             new_file: extractFilename(pdf_path),
             user_id: req.userId,
-            bodega_name: normalizeName(req.body.winery_name)
-          }).catch(err => console.error('Webhook error:', err.message));
-        }
-
-        // Cleanup old file IF it changed AND wasn't already handled by rename/overwrite
-        if (pathChanged && oldPdfPath && !physicalRenamed) {
-          const oldFilename = extractFilename(oldPdfPath);
-          const newFilename = extractFilename(pdf_path);
-          
-          if (oldFilename !== newFilename) {
-            const deleteLocal = path.join(__dirname, '..', 'uploads', oldFilename);
-            if (fs.existsSync(deleteLocal)) {
-              fs.unlink(deleteLocal, (err) => {
-                if (err) console.error('Delete error:', err.message);
-              });
+            bodega_name: req.body.winery_name,
+            rename: isRename
+          }).then(() => {
+            // Cleanup old file ONLY after successful webhook notification
+            if (oldPdfPath && (pdf_path !== oldPdfPath) && !physicalRenamed) {
+              const oldFilename = extractFilename(oldPdfPath);
+              const deletePath = path.join(__dirname, '..', 'uploads', oldFilename);
+              if (fs.existsSync(deletePath)) {
+                fs.unlink(deletePath, (err) => {
+                  if (err) console.error('Delayed Cleanup Error:', err.message);
+                  else console.log(`[Cleanup] Deleted old file: ${oldFilename}`);
+                });
+              }
             }
-          }
+          }).catch(err => {
+            console.error('Webhook notification failed:', err.message);
+          });
         }
       }
 
