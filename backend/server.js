@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/auth');
 const bodegaRoutes = require('./routes/bodegas');
 const chatRoutes = require('./routes/chat');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,6 +30,7 @@ const loginLimiter = rateLimit({
 app.use('/auth', loginLimiter, authRoutes);
 app.use('/api/bodegas', bodegaRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

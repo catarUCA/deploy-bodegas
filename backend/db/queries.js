@@ -10,6 +10,10 @@ const queries = {
     const [result] = await pool.execute('INSERT INTO users (email, verified) VALUES (?, true)', [email]);
     return result.insertId;
   },
+  getUserById: async (userId) => {
+    const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [userId]);
+    return rows[0];
+  },
 
   // Login Codes
   createLoginCode: async (email, code, expiresAt) => {
@@ -34,6 +38,23 @@ const queries = {
     const [rows] = await pool.execute('SELECT * FROM bodegas WHERE user_id = ?', [userId]);
     return rows[0];
   },
+  getDashboard: async () => {
+    const [rows] = await pool.execute(`
+      SELECT
+        u.id AS user_id,
+        u.email,
+        u.created_at AS user_created_at,
+        b.id AS bodega_id,
+        b.nombre,
+        b.pdf_path,
+        b.updated_at AS bodega_updated_at
+      FROM users u
+      LEFT JOIN bodegas b ON u.id = b.user_id
+      ORDER BY b.updated_at DESC, u.created_at DESC
+    `);
+    return rows;
+  },
+
   saveBodega: async (userId, data) => {
     const {
       winery_name, winery_address, winery_city, winery_province,

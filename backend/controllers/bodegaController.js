@@ -2,14 +2,8 @@ const queries = require('../db/queries');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+const pdfStorage = require('../services/pdfStorage');
 require('dotenv').config();
-
-// Helpers suggested by audit
-const extractFilename = (filePath) => {
-  if (!filePath) return null;
-  return filePath.split('/').pop();
-};
 
 const normalizeName = (name) => {
   return (name || '')
@@ -20,16 +14,13 @@ const normalizeName = (name) => {
     .trim();
 };
 
-const calculateHash = async (filePath) => {
+const parsePdfPath = (dbPdfPath) => {
+  if (!dbPdfPath) return null;
   try {
-    if (!filePath || !fs.existsSync(filePath)) return null;
-    const fileBuffer = await fs.promises.readFile(filePath);
-    const hashSum = crypto.createHash('sha256');
-    hashSum.update(fileBuffer);
-    return hashSum.digest('hex');
-  } catch (err) {
-    console.error('Error calculating hash:', err.message);
-    return null;
+    const parsed = JSON.parse(dbPdfPath);
+    return Array.isArray(parsed) ? parsed[0] : parsed;
+  } catch (e) {
+    return dbPdfPath;
   }
 };
 
@@ -46,126 +37,69 @@ const bodegaController = {
 
   saveBodega: async (req, res) => {
     try {
-      // 1. Get current record to compare
       const oldData = await queries.getBodegaByUserId(req.userId);
-      let oldPdfPath = null;
-      if (oldData && oldData.pdf_path) {
-        try {
-          const parsed = JSON.parse(oldData.pdf_path);
-          oldPdfPath = Array.isArray(parsed) ? parsed[0] : parsed;
-        } catch (e) {
-          oldPdfPath = oldData.pdf_path;
-        }
-      }
+      const oldPdfPath = oldData ? parsePdfPath(oldData.pdf_path) : null;
+      const nameChanged = oldData && oldData.winery_name !== req.body.winery_name;
 
-      // 2. Determine paths and content changes
-      let pdf_path = null;
-      let physicalRenamed = false;
-      let isRename = false;
-      const cleanNewName = normalizeName(req.body.winery_name || 'bodega');
-      const nameChanged = oldData && req.body.winery_name !== oldData.winery_name;
-      
       const uploadsDir = path.join(__dirname, '..', 'uploads');
       const tempDir = path.join(uploadsDir, 'temp');
 
-      let hashesMatch = false;
+      let pdf_path = null;
+      let contentChanged = false;
+      let wasRenamed = false;
+      let oldFileStillExists = false;
 
       if (req.file) {
-        // El archivo nuevo está en /uploads/temp/nombre_incoming.pdf
-        const tempLocalPath = path.join(tempDir, req.file.filename);
-        const finalFilename = `${cleanNewName}${path.extname(req.file.originalname).toLowerCase()}`;
-        const finalLocalPath = path.join(uploadsDir, finalFilename);
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        const tempAbsPath = path.join(tempDir, req.file.filename);
+        const finalAbsPath = path.join(uploadsDir, `${normalizeName(req.body.winery_name || 'bodega')}${ext}`);
+        const oldAbsPath = oldPdfPath ? path.join(uploadsDir, path.basename(oldPdfPath)) : null;
 
-        if (oldPdfPath) {
-          const oldLocalPath = path.join(uploadsDir, extractFilename(oldPdfPath));
-          const oldHash = await calculateHash(oldLocalPath);
-          const newHash = await calculateHash(tempLocalPath);
-          
-          if (oldHash && newHash && oldHash === newHash) {
-            hashesMatch = true;
-          }
-        }
+        const result = await pdfStorage.store(tempAbsPath, oldAbsPath, finalAbsPath);
 
-        if (hashesMatch) {
-          // CONTENIDO IDÉNTICO
-          try {
-            await fs.promises.unlink(tempLocalPath); // No necesitamos el nuevo
-          } catch(e) { console.error('Cleanup temp error', e); }
-
-          if (!nameChanged) {
-            console.log(`[Bypass] Identical file and name. No update needed.`);
-            pdf_path = oldPdfPath; // Se queda como estaba
-          } else {
-            console.log(`[Hash Match] Content identical but name changed. Renaming old file.`);
-            // Cambiar nombre al archivo físico viejo para que coincida con la nueva bodega
-            const oldLocalPath = path.join(uploadsDir, extractFilename(oldPdfPath));
-            if (fs.existsSync(oldLocalPath)) {
-              try { await fs.promises.rename(oldLocalPath, finalLocalPath); } catch(e) {}
-              physicalRenamed = true;
-            }
-            pdf_path = `/uploads/${finalFilename}`;
-            isRename = true;
-          }
+        if (result.pdfPath) {
+          pdf_path = `/uploads/${path.basename(result.pdfPath)}`;
+          contentChanged = result.contentChanged;
+          oldFileStillExists = result.oldFileStillExists;
+          wasRenamed = !contentChanged && pdf_path !== oldPdfPath;
         } else {
-          // CONTENIDO DIFERENTE O ARCHIVO NUEVO
-          console.log(`[New Content] Moving file from temp to uploads: ${finalFilename}`);
-          // Si existía un archivo viejo con otro nombre, lo borramos (o lo dejamos para que lo borre el webhook .then)
-          try {
-            if (fs.existsSync(finalLocalPath)) await fs.promises.unlink(finalLocalPath); // Limpieza preventiva si el nombre coincide
-            await fs.promises.rename(tempLocalPath, finalLocalPath);
-          } catch(e) { console.error('Error in new content file ops', e); }
-          pdf_path = `/uploads/${finalFilename}`;
-          isRename = false;
+          pdf_path = oldPdfPath;
         }
       } else if (req.body.existing_pdf_path) {
-        // No se subió archivo, solo se cambió (o no) el nombre
-        // Sanitize incoming path to prevent path traversal
         const safeBaseName = path.basename(req.body.existing_pdf_path);
-        pdf_path = `/uploads/${safeBaseName}`;
-        
+        const ext = path.extname(safeBaseName).toLowerCase();
+        const currentAbsPath = path.join(uploadsDir, safeBaseName);
+
         if (nameChanged) {
-          isRename = true;
-          const currentFilename = safeBaseName;
-          const ext = path.extname(currentFilename).toLowerCase();
-          const expectedFilename = `${cleanNewName}${ext}`;
-          
-          if (currentFilename !== expectedFilename) {
-            const oldLocal = path.join(uploadsDir, currentFilename);
-            const newLocal = path.join(uploadsDir, expectedFilename);
-            if (fs.existsSync(oldLocal)) {
-              try { await fs.promises.rename(oldLocal, newLocal); } catch(e){}
-              pdf_path = `/uploads/${expectedFilename}`;
-              physicalRenamed = true;
-            }
-          }
+          const finalAbsPath = path.join(uploadsDir, `${normalizeName(req.body.winery_name || 'bodega')}${ext}`);
+          const result = await pdfStorage.rename(currentAbsPath, finalAbsPath);
+          wasRenamed = result.renamed;
+          pdf_path = result.renamed ? `/uploads/${path.basename(finalAbsPath)}` : `/uploads/${safeBaseName}`;
+        } else {
+          pdf_path = `/uploads/${safeBaseName}`;
         }
       }
 
-      // 3. Decide if we call the webhook
-      const shouldCallWebhook = (!!req.file && !hashesMatch) || (isRename);
+      const shouldCallWebhook = contentChanged || wasRenamed;
 
-      // 4. Save to DB
       await queries.saveBodega(req.userId, { ...req.body, pdf_path });
 
-      // 5. Trigger Webhook
       if (shouldCallWebhook) {
         const ingestaUrl = process.env.INGESTA_WEBHOOK_URL;
         if (ingestaUrl) {
           axios.post(ingestaUrl, {
-            old_file: extractFilename(oldPdfPath),
-            new_file: extractFilename(pdf_path),
+            old_file: oldPdfPath ? path.basename(oldPdfPath) : null,
+            new_file: pdf_path ? path.basename(pdf_path) : null,
             user_id: req.userId,
             bodega_name: req.body.winery_name,
-            rename: isRename
+            rename: wasRenamed
           }).then(() => {
-            // Limpieza del archivo viejo SOLO si el nombre cambió físicamente (no si fue sobrescrito)
-            if (oldPdfPath && (pdf_path !== oldPdfPath) && !physicalRenamed && !hashesMatch) {
-              const oldFilename = extractFilename(oldPdfPath);
-              const deletePath = path.join(uploadsDir, oldFilename);
+            if (contentChanged && oldFileStillExists && oldPdfPath && pdf_path !== oldPdfPath) {
+              const deletePath = path.join(uploadsDir, path.basename(oldPdfPath));
               if (fs.existsSync(deletePath)) {
                 fs.unlink(deletePath, (err) => {
                   if (err) console.error('Delayed Cleanup Error:', err.message);
-                  else console.log(`[Cleanup] Deleted old file: ${oldFilename}`);
+                  else console.log(`[Cleanup] Deleted old file: ${path.basename(oldPdfPath)}`);
                 });
               }
             }

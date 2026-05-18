@@ -16,5 +16,10 @@ export const routes: Routes = [
     path: 'consultas', 
     loadComponent: () => import('./features/chat/consultas').then(m => m.ConsultasComponent)
   },
+  { 
+    path: 'admin', 
+    loadComponent: () => import('./features/admin/dashboard').then(m => m.AdminDashboardComponent),
+    canActivate: [authGuard]
+  },
   { path: '**', redirectTo: 'form' }
 ];
