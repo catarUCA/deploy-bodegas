@@ -1,8 +1,9 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { AdminService, DashboardRow } from '../../../core/services/admin.service';
-import { AuthService } from '../../../core/services/auth.service';
+import { AdminService, DashboardRow } from '../../core/services/admin.service';
+import { AuthService } from '../../core/services/auth.service';
+import { HttpErrorResponse } from '@angular/common/http';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -108,13 +109,13 @@ export class AdminDashboardComponent implements OnInit {
 
   ngOnInit() {
     this.adminService.getDashboard().subscribe({
-      next: (res) => {
+      next: (res: { success: boolean; data: DashboardRow[] }) => {
         if (res.success) {
           this.rows = res.data;
         }
         this.loading = false;
       },
-      error: (err) => {
+      error: (err: HttpErrorResponse) => {
         this.loading = false;
         if (err.status === 403) {
           this.error = 'Acceso denegado. No tienes permisos de administrador.';
