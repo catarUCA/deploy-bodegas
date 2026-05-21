@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AdminService, DashboardRow } from '../../core/services/admin.service';
@@ -65,7 +65,8 @@ import { HttpErrorResponse } from '@angular/common/http';
                       <span *ngIf="!row.has_bodega" class="font-sans text-xs text-on-surface-variant/30">—</span>
                     </td>
                     <td class="px-6 py-4 font-sans text-xs text-on-surface-variant">
-                      {{ row.bodega_updated_at ? (row.bodega_updated_at | date:'dd/MM/yyyy HH:mm') : '—' }}
+                      <span *ngIf="row.bodega_updated_at">{{ row.bodega_updated_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                      <span *ngIf="!row.bodega_updated_at">—</span>
                     </td>
                   </tr>
                 </tbody>
@@ -102,26 +103,32 @@ export class AdminDashboardComponent implements OnInit {
   private adminService = inject(AdminService);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   rows: DashboardRow[] = [];
   loading = true;
   error: string | null = null;
 
   ngOnInit() {
+    console.log('AdminDashboardComponent: OnInit started');
     this.adminService.getDashboard().subscribe({
       next: (res: { success: boolean; data: DashboardRow[] }) => {
+        console.log('AdminDashboardComponent: Received data successfully', res);
         if (res.success) {
           this.rows = res.data;
         }
         this.loading = false;
+        this.cdr.detectChanges();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: any) => {
+        console.error('AdminDashboardComponent: Error fetching dashboard data', err);
         this.loading = false;
-        if (err.status === 403) {
+        if (err && err.status === 403) {
           this.error = 'Acceso denegado. No tienes permisos de administrador.';
         } else {
           this.error = 'Error al cargar los datos del dashboard.';
         }
+        this.cdr.detectChanges();
       }
     });
   }

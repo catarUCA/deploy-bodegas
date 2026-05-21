@@ -79,7 +79,8 @@ import { AuthService } from '../../../core/services/auth.service';
       ).subscribe({
         next: (res) => {
           if (res.success) {
-            this.router.navigate(['/form']);
+            const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+            this.router.navigate([returnUrl || '/form']);
           } else {
             this.errorMessage = res.message || 'Código inválido.';
           }

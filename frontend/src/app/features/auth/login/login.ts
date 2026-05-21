@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
@@ -47,6 +47,7 @@ import { AuthService } from '../../../core/services/auth.service';
   export class LoginComponent {
     private authService = inject(AuthService);
     private router = inject(Router);
+    private route = inject(ActivatedRoute);
   
     email = '';
     loading = false;
@@ -63,7 +64,13 @@ import { AuthService } from '../../../core/services/auth.service';
       ).subscribe({
         next: (res) => {
           if (res.success) {
-            this.router.navigate(['/verify'], { queryParams: { email: this.email } });
+            const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+            this.router.navigate(['/verify'], {
+              queryParams: {
+                email: this.email,
+                ...(returnUrl ? { returnUrl } : {})
+              }
+            });
           } else {
             this.errorMessage = res.message || 'Error al solicitar el código.';
           }
